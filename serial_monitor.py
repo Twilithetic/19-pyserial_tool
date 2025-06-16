@@ -1,17 +1,60 @@
-#!/usr/bin/env python3
 import argparse
 import serial
+import serial.tools.list_ports
 import time
 import sys
 from datetime import datetime
 
+def scan_ports():
+    """扫描并返回可用的串口列表"""
+    print("\n正在扫描可用串口...")
+    ports = serial.tools.list_ports.comports()
+    if not ports:
+        print("未发现可用串口！")
+        return []
+    
+    print("可用串口列表：")
+    print("{:<8} {:<20} {}".format("序号", "端口", "描述"))
+    print("-" * 40)
+    for i, port in enumerate(ports, 1):
+        print(f"{i:<8} {port.device:<20} {port.description}")
+    
+    return ports
+
 def main():
     parser = argparse.ArgumentParser(description='串口数据接收工具（处理\r\n格式数据包）')
-    parser.add_argument('-p', '--port', required=True, help='串口号（如 COM1 或 /dev/ttyUSB0）')
+    parser.add_argument('-p', '--port', help='串口号（如 COM1 或 /dev/ttyUSB0）')
     parser.add_argument('-b', '--baudrate', type=int, default=9600, help='波特率（默认 9600）')
     parser.add_argument('-t', '--timeout', type=float, default=1, help='超时时间（秒，默认 1）')
     parser.add_argument('--hex', action='store_true', help='以十六进制格式显示数据')
+    parser.add_argument('--scan', action='store_true', help='扫描可用串口并退出')
     args = parser.parse_args()
+    
+        # 扫描模式：只显示可用串口并退出
+    if args.scan:
+        scan_ports()
+        sys.exit(0)
+        
+        # 如果未指定端口，自动扫描并让用户选择
+    if not args.port:
+        ports = scan_ports()
+        if not ports:
+            sys.exit(1)
+        
+        try:
+            choice = input("\n请输入要连接的串口序号 (1-{}), 或按回车退出: ".format(len(ports)))
+            if not choice:
+                sys.exit(0)
+                
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(ports):
+                args.port = ports[choice_idx].device
+            else:
+                print("无效的选择！")
+                sys.exit(1)
+        except (ValueError, IndexError):
+            print("无效的输入！")
+            sys.exit(1)
 
     try:
         ser = serial.Serial(
